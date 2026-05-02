@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>كافيه النخبة - نظام نقطة البيع</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+<!-- ██████ شاشة تسجيل الدخول ██████ -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="logo-icon">☕</span>
+      <h1>كافيه النخبة</h1>
+      <p>نظام نقطة البيع المتكامل</p>
+    </div>
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label><i class="fas fa-user"></i> اسم المستخدم</label>
+        <input type="text" id="loginUser" value="admin" placeholder="admin" required>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-lock"></i> كلمة المرور</label>
+        <input type="password" id="loginPass" value="admin123" placeholder="••••••" required>
+      </div>
+      <button type="submit" class="btn-login">
+        <i class="fas fa-sign-in-alt"></i> دخول
+      </button>
+    </form>
+    <p class="login-hint">Admin: admin / admin123 | Worker: worker / worker123</p>
+  </div>
+</div>
+
+<!-- ██████ التطبيق الرئيسي ██████ -->
+<div id="app" class="app hidden">
+
+  <!-- ── الشريط الجانبي ── -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="shop-icon">☕</span>
+      <div>
+        <h2 id="shopName">كافيه النخبة</h2>
+        <span class="user-badge" id="userBadge">مدير</span>
+      </div>
+      <button class="sidebar-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+    </div>
+
+    <div class="nav-items">
+      <a class="nav-item active" onclick="showPage('pos')" data-page="pos">
+        <i class="fas fa-cash-register"></i><span>نقطة البيع</span>
+      </a>
+      <a class="nav-item" onclick="showPage('orders')" data-page="orders">
+        <i class="fas fa-list-alt"></i><span>الطلبات</span>
+        <span class="badge" id="pendingBadge">0</span>
+      </a>
+      <a class="nav-item" onclick="showPage('products')" data-page="products">
+        <i class="fas fa-box"></i><span>المنتجات</span>
+      </a>
+      <a class="nav-item" onclick="showPage('customers')" data-page="customers">
+        <i class="fas fa-users"></i><span>العملاء</span>
+      </a>
+      <a class="nav-item" onclick="showPage('debts')" data-page="debts">
+        <i class="fas fa-hand-holding-usd"></i><span>الديون</span>
+        <span class="badge danger" id="debtsBadge">0</span>
+      </a>
+      <a class="nav-item" onclick="showPage('expenses')" data-page="expenses">
+        <i class="fas fa-wallet"></i><span>المصاريف</span>
+      </a>
+      <a class="nav-item" onclick="showPage('reports')" data-page="reports">
+        <i class="fas fa-chart-bar"></i><span>التقارير</span>
+      </a>
+      <a class="nav-item admin-only" onclick="showPage('admin')" data-page="admin">
+        <i class="fas fa-cog"></i><span>الإدارة</span>
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="btn-dark-toggle" onclick="toggleDark()">
+        <i class="fas fa-moon" id="darkIcon"></i>
+        <span id="darkText">وضع ليلي</span>
+      </button>
+      <button class="btn-logout" onclick="handleLogout()">
+        <i class="fas fa-sign-out-alt"></i> خروج
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── المحتوى الرئيسي ── -->
+  <main class="main-content">
+
+    <!-- =================== صفحة POS =================== -->
+    <div id="page-pos" class="page active">
+      <div class="pos-layout">
+
+        <!-- منطقة المنتجات -->
+        <div class="products-area">
+          <!-- شريط البحث والفلترة -->
+          <div class="search-bar">
+            <div class="search-input-wrap">
+              <i class="fas fa-search"></i>
+              <input type="text" id="searchInput" placeholder="ابحث عن منتج أو امسح الباركود..." oninput="filterProducts()">
+            </div>
+            <button class="btn-icon" onclick="toggleView()" title="تغيير العرض">
+              <i class="fas fa-th" id="viewIcon"></i>
+            </button>
+          </div>
+
+          <!-- الفئات -->
+          <div class="categories-bar" id="categoriesBar">
+            <button class="cat-btn active" onclick="filterCategory(0, this)">
+              <span>🏠</span> الكل
+            </button>
+            <!-- يتم تحميلها ديناميكياً -->
+          </div>
+
+          <!-- شريط الترتيب -->
+          <div class="sort-bar">
+            <span>ترتيب:</span>
+            <button class="sort-btn active" onclick="sortProducts('popular', this)">الأكثر مبيعاً</button>
+            <button class="sort-btn" onclick="sortProducts('price_asc', this)">السعر ↑</button>
+            <button class="sort-btn" onclick="sortProducts('price_desc', this)">السعر ↓</button>
+            <button class="sort-btn" onclick="sortProducts('featured', this)">المميزة ⭐</button>
+          </div>
+
+          <!-- بطاقات المنتجات -->
+          <div class="products-grid" id="productsGrid">
+            <div class="loading-skeleton">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- منطقة السلة -->
+        <div class="cart-area">
+          <div class="cart-header">
+            <h3><i class="fas fa-shopping-cart"></i> الطلب الحالي</h3>
+            <div class="cart-actions">
+              <button class="btn-icon" onclick="showCustomerPicker()" title="إضافة عميل">
+                <i class="fas fa-user-plus"></i>
+              </button>
+              <button class="btn-icon danger" onclick="clearCart()" title="إفراغ السلة">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- معلومات العميل -->
+          <div class="cart-customer" id="cartCustomer" style="display:none">
+            <i class="fas fa-user-circle"></i>
+            <span id="cartCustomerName">زبون</span>
+            <button onclick="removeCartCustomer()"><i class="fas fa-times"></i></button>
+          </div>
+
+          <!-- نوع الطلب -->
+          <div class="order-type-bar">
+            <button class="type-btn active" onclick="setOrderType('dine_in', this)">
+              <i class="fas fa-utensils"></i> داخل
+            </button>
+            <button class="type-btn" onclick="setOrderType('takeaway', this)">
+              <i class="fas fa-shopping-bag"></i> خارج
+            </button>
+            <button class="type-btn" onclick="setOrderType('delivery', this)">
+              <i class="fas fa-motorcycle"></i> توصيل
+            </button>
+          </div>
+
+          <!-- عناصر السلة -->
+          <div class="cart-items" id="cartItems">
+            <div class="cart-empty">
+              <i class="fas fa-shopping-cart"></i>
+              <p>السلة فارغة</p>
+              <small>اضغط على منتج لإضافته</small>
+            </div>
+          </div>
+
+          <!-- ملاحظات الطلب -->
+          <div class="cart-notes">
+            <input type="text" id="orderNotes" placeholder="💬 ملاحظات الطلب...">
+          </div>
+
+          <!-- الخصم -->
+          <div class="discount-row">
+            <span>خصم:</span>
+            <select id="discountType">
+              <option value="fixed">DH</option>
+              <option value="percent">%</option>
+            </select>
+            <input type="number" id="discountValue" value="0" min="0" oninput="updateTotals()">
+          </div>
+
+          <!-- المجاميع -->
+          <div class="cart-totals">
+            <div class="total-row"><span>المجموع الفرعي</span><span id="subtotalVal">0.00 DH</span></div>
+            <div class="total-row"><span>الخصم</span><span id="discountVal" class="green">-0.00 DH</span></div>
+            <div class="total-row" id="taxRow" style="display:none"><span>الضريبة</span><span id="taxVal">0.00 DH</span></div>
+            <div class="total-row total-final"><span>المجموع</span><span id="totalVal">0.00 DH</span></div>
+          </div>
+
+          <!-- طريقة الدفع -->
+          <div class="payment-methods">
+            <button class="pay-btn active" onclick="setPayMethod('cash', this)">
+              <i class="fas fa-money-bill"></i> نقدي
+            </button>
+            <button class="pay-btn" onclick="setPayMethod('card', this)">
+              <i class="fas fa-credit-card"></i> بطاقة
+            </button>
+            <button class="pay-btn" onclick="setPayMethod('debt', this)">
+              <i class="fas fa-hand-holding-usd"></i> دين
+            </button>
+          </div>
+
+          <!-- المبلغ المدفوع -->
+          <div id="cashRow" class="cash-row">
+            <label>المبلغ المدفوع:</label>
+            <input type="number" id="amountPaid" placeholder="0.00" oninput="calcChange()">
+            <div class="change-display" id="changeDisplay" style="display:none">
+              الباقي: <strong id="changeAmount">0.00</strong> DH
+            </div>
+          </div>
+
+          <!-- أزرار الإجراءات -->
+          <div class="cart-btns">
+            <button class="btn-print-receipt" onclick="printQuickReceipt()">
+              <i class="fas fa-print"></i>
+            </button>
+            <button class="btn-whatsapp" onclick="sendWhatsApp()">
+              <i class="fab fa-whatsapp"></i>
+            </button>
+            <button class="btn-checkout" onclick="checkout()" id="checkoutBtn">
+              <i class="fas fa-check-circle"></i> تأكيد الطلب
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================== صفحة الطلبات =================== -->
+    <div id="page-orders" class="page">
+      <div class="page-header">
+        <h2><i class="fas fa-list-alt"></i> الطلبات</h2>
+        <div class="page-actions">
+          <div class="period-tabs">
+            <button class="period-btn active" onclick="loadOrders('day', this)">اليوم</button>
+            <button class="period-btn" onclick="loadOrders('week', this)">الأسبوع</button>
+            <button class="period-btn" onclick="loadOrders('month', this)">الشهر</button>
+          </div>
+          <select id="statusFilter" onchange="loadOrders()">
+            <option value="">كل الحالات</option>
+            <option value="pending">قيد التحضير</option>
+            <option value="preparing">يُحضَّر</option>
+            <option value="ready">جاهز</option>
+            <option value="delivered">تم التسليم</option>
+            <option value="cancelled">ملغي</option>
+          </select>
+        </div>
+      </div>
+      <div class="orders-list" id="ordersList"></div>
+    </div>
+
+    <!-- =================== صفحة المنتجات =================== -->
+    <div id="page-products" class="page">
+      <div class="page-header">
+        <h2><i class="fas fa-box"></i> إدارة المنتجات</h2>
+        <button class="btn-primary" onclick="openProductModal()">
+          <i class="fas fa-plus"></i> إضافة منتج
+        </button>
+      </div>
+      <div class="products-table-wrap">
+        <table class="data-table" id="productsTable">
+          <thead>
+            <tr>
+              <th>المنتج</th><th>الفئة</th><th>سعر الشراء</th>
+              <th>سعر البيع</th><th>المخزون</th><th>المباع</th><th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="productsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- =================== صفحة العملاء =================== -->
+    <div id="page-customers" class="page">
+      <div class="page-header">
+        <h2><i class="fas fa-users"></i> إدارة العملاء</h2>
+        <button class="btn-primary" onclick="openCustomerModal()">
+          <i class="fas fa-user-plus"></i> إضافة عميل
+        </button>
+      </div>
+      <div class="search-bar" style="margin-bottom:1rem">
+        <div class="search-input-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="ابحث عن عميل..." oninput="searchCustomers(this.value)">
+        </div>
+      </div>
+      <div id="customersList" class="customers-grid"></div>
+    </div>
+
+    <!-- =================== صفحة الديون =================== -->
+    <div id="page-debts" class="page">
+      <div class="page-header">
+        <h2><i class="fas fa-hand-holding-usd"></i> نظام الديون</h2>
+        <button class="btn-primary" onclick="openDebtModal()">
+          <i class="fas fa-plus"></i> تسجيل دين
+        </button>
+      </div>
+      <div class="debts-summary" id="debtsSummary"></div>
+      <div class="debt-filter">
+        <button class="filter-btn active" onclick="loadDebts('', this)">الكل</button>
+        <button class="filter-btn" onclick="loadDebts('pending', this)">غير مدفوع</button>
+        <button class="filter-btn" onclick="loadDebts('partial', this)">جزئي</button>
+        <button class="filter-btn" onclick="loadDebts('paid', this)">مدفوع</button>
+      </div>
+      <div id="debtsList" class="debts-list"></div>
+    </div>
+
+    <!-- =================== صفحة المصاريف =================== -->
+    <div id="page-expenses" class="page">
+      <div class="page-header">
+        <h2><i class="fas fa-wallet"></i> المصاريف</h2>
+        <button class="btn-primary" onclick="openExpenseModal()">
+          <i class="fas fa-plus"></i> إضافة مصروف
+        </button>
+      </div>
+      <div id="expensesList" class="expenses-list"></div>
+    </div>
+
+    <!-- =================== صفحة التقارير =================== -->
+    <div id="page-reports" class="page">
+      <div class="page-header">
+        <h2><i class="fas fa-chart-bar"></i> التقارير والإحصائيات</h2>
+        <div class="period-tabs">
+          <button class="period-btn active" onclick="loadReports('day', this)">اليوم</button>
+          <button class="period-btn" onclick="loadReports('week', this)">الأسبوع</button>
+          <button class="period-btn" onclick="loadReports('month', this)">الشهر</button>
+        </div>
+      </div>
+
+      <!-- الكروت الإحصائية -->
+      <div class="stats-grid" id="statsGrid"></div>
+
+      <!-- الرسوم البيانية -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>📈 مبيعات 7 أيام</h3>
+          <canvas id="salesChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>🏆 أفضل المنتجات</h3>
+          <canvas id="topChart"></canvas>
+        </div>
+      </div>
+
+      <!-- المخزون المنخفض -->
+      <div class="low-stock-section" id="lowStockSection"></div>
+    </div>
+
+    <!-- =================== صفحة الإدارة =================== -->
+    <div id="page-admin" class="page">
+      <div class="page-header">
+        <h2><i class="fas fa-cog"></i> لوحة الإدارة</h2>
+      </div>
+      <div class="admin-grid">
+        <div class="admin-card">
+          <h3><i class="fas fa-store"></i> إعدادات المحل</h3>
+          <div class="settings-form" id="settingsForm"></div>
+          <button class="btn-primary" onclick="saveSettings()">💾 حفظ الإعدادات</button>
+        </div>
+        <div class="admin-card">
+          <h3><i class="fas fa-users-cog"></i> إدارة المستخدمين</h3>
+          <div id="usersList"></div>
+          <button class="btn-primary admin-only" onclick="openUserModal()">
+            <i class="fas fa-user-plus"></i> إضافة مستخدم
+          </button>
+        </div>
+        <div class="admin-card">
+          <h3><i class="fas fa-download"></i> النسخ الاحتياطي</h3>
+          <button class="btn-secondary" onclick="backupData()">
+            <i class="fas fa-download"></i> تنزيل نسخة احتياطية
+          </button>
+          <button class="btn-secondary" onclick="document.getElementById('restoreFile').click()">
+            <i class="fas fa-upload"></i> استرجاع البيانات
+          </button>
+          <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreData(event)">
+        </div>
+        <div class="admin-card">
+          <h3><i class="fas fa-qrcode"></i> QR Code المنيو</h3>
+          <div id="qrContainer"></div>
+          <button class="btn-secondary" onclick="generateQR()">
+            <i class="fas fa-qrcode"></i> توليد QR Code
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ██████ اللوحة السرية (بكلمة مرور) ██████ -->
+<button class="secret-trigger" onclick="openSecretPanel()" title="اللوحة السرية">
+  <i class="fas fa-eye-slash"></i>
+</button>
+
+<div id="secretPanel" class="secret-panel hidden">
+  <div class="secret-content">
+    <div class="secret-header">
+      <h3>🔐 اللوحة السرية</h3>
+      <button onclick="closeSecretPanel()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="secretLock" class="secret-lock">
+      <p>أدخل كلمة السر للوصول</p>
+      <input type="password" id="secretPassInput" placeholder="كلمة السر..." onkeypress="if(event.key==='Enter') verifySecret()">
+      <button class="btn-primary" onclick="verifySecret()">دخول</button>
+    </div>
+    <div id="secretData" class="secret-data hidden">
+      <div class="secret-stats">
+        <div class="secret-stat">
+          <div class="secret-stat-icon">📦</div>
+          <div class="secret-stat-value" id="secretOrders">0</div>
+          <div class="secret-stat-label">عدد الطلبات اليوم</div>
+        </div>
+        <div class="secret-stat">
+          <div class="secret-stat-icon">💰</div>
+          <div class="secret-stat-value" id="secretRevenue">0 DH</div>
+          <div class="secret-stat-label">إجمالي المبيعات</div>
+        </div>
+        <div class="secret-stat">
+          <div class="secret-stat-icon">📈</div>
+          <div class="secret-stat-value" id="secretProfit">0 DH</div>
+          <div class="secret-stat-label">صافي الربح</div>
+        </div>
+        <div class="secret-stat">
+          <div class="secret-stat-icon">🏆</div>
+          <div class="secret-stat-value" id="secretTop">-</div>
+          <div class="secret-stat-label">أكثر منتج باع</div>
+        </div>
+      </div>
+      <button class="btn-secondary" onclick="closeSecretPanel()">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<!-- ██████ المودالات ██████ -->
+
+<!-- مودال المنتج -->
+<div id="productModal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="productModalTitle">إضافة منتج</h3>
+      <button onclick="closeModal('productModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="prodId">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>اسم المنتج *</label>
+          <input type="text" id="prodName" placeholder="اسم المنتج">
+        </div>
+        <div class="form-group">
+          <label>الفئة</label>
+          <select id="prodCategory"></select>
+        </div>
+        <div class="form-group">
+          <label>وصف المنتج</label>
+          <textarea id="prodDesc" placeholder="وصف مختصر..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>رابط الصورة</label>
+          <input type="text" id="prodImage" placeholder="https://...">
+        </div>
+        <div class="form-group">
+          <label>باركود</label>
+          <input type="text" id="prodBarcode" placeholder="123456789">
+        </div>
+        <div class="form-group">
+          <label>سعر الشراء (DH)</label>
+          <input type="number" id="prodPurchase" placeholder="0.00" min="0">
+        </div>
+        <div class="form-group">
+          <label>سعر البيع (DH)</label>
+          <input type="number" id="prodSelling" placeholder="0.00" min="0">
+        </div>
+        <div class="form-group">
+          <label>المخزون</label>
+          <input type="number" id="prodStock" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label>حد التنبيه</label>
+          <input type="number" id="prodMinStock" placeholder="5" min="0">
+        </div>
+        <div class="form-group">
+          <label>منتج مميز ⭐</label>
+          <select id="prodFeatured">
+            <option value="0">لا</option>
+            <option value="1">نعم</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('productModal')">إلغاء</button>
+      <button class="btn-primary" onclick="saveProduct()">💾 حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال الدين -->
+<div id="debtModal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>تسجيل دين جديد</h3>
+      <button onclick="closeModal('debtModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>اسم الزبون *</label>
+        <input type="text" id="debtCustomer" placeholder="اسم الزبون">
+      </div>
+      <div class="form-group">
+        <label>رقم الهاتف</label>
+        <input type="tel" id="debtPhone" placeholder="06XXXXXXXX">
+      </div>
+      <div class="form-group">
+        <label>المبلغ (DH) *</label>
+        <input type="number" id="debtAmount" placeholder="0.00" min="0">
+      </div>
+      <div class="form-group">
+        <label>تاريخ الاستحقاق</label>
+        <input type="date" id="debtDue">
+      </div>
+      <div class="form-group">
+        <label>ملاحظات</label>
+        <textarea id="debtNotes" placeholder="ملاحظات اختيارية..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('debtModal')">إلغاء</button>
+      <button class="btn-primary" onclick="saveDebt()">💾 تسجيل</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال دفع الدين -->
+<div id="payDebtModal" class="modal hidden">
+  <div class="modal-content small">
+    <div class="modal-header">
+      <h3>تسديد دين</h3>
+      <button onclick="closeModal('payDebtModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p>المبلغ المتبقي: <strong id="debtRemaining">0</strong> DH</p>
+      <div class="form-group">
+        <label>المبلغ المدفوع (DH)</label>
+        <input type="number" id="payDebtAmount" placeholder="0.00" min="0">
+      </div>
+      <div class="form-group">
+        <label>ملاحظة</label>
+        <input type="text" id="payDebtNotes" placeholder="ملاحظة...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('payDebtModal')">إلغاء</button>
+      <button class="btn-primary" onclick="confirmPayDebt()">✅ تأكيد الدفع</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال العميل -->
+<div id="customerModal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>إضافة عميل</h3>
+      <button onclick="closeModal('customerModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="custName" placeholder="اسم العميل">
+      </div>
+      <div class="form-group">
+        <label>الهاتف</label>
+        <input type="tel" id="custPhone" placeholder="06XXXXXXXX">
+      </div>
+      <div class="form-group">
+        <label>المدينة</label>
+        <input type="text" id="custCity" placeholder="المدينة">
+      </div>
+      <div class="form-group">
+        <label>ملاحظات</label>
+        <textarea id="custNotes" placeholder="..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('customerModal')">إلغاء</button>
+      <button class="btn-primary" onclick="saveCustomer()">💾 حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال المصروف -->
+<div id="expenseModal" class="modal hidden">
+  <div class="modal-content small">
+    <div class="modal-header">
+      <h3>إضافة مصروف</h3>
+      <button onclick="closeModal('expenseModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>العنوان *</label>
+        <input type="text" id="expTitle" placeholder="مثال: إيجار، مشتريات...">
+      </div>
+      <div class="form-group">
+        <label>المبلغ (DH) *</label>
+        <input type="number" id="expAmount" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label>الفئة</label>
+        <select id="expCategory">
+          <option>إيجار</option><option>مشتريات</option><option>رواتب</option>
+          <option>كهرباء وماء</option><option>صيانة</option><option>أخرى</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>التاريخ</label>
+        <input type="date" id="expDate">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('expenseModal')">إلغاء</button>
+      <button class="btn-primary" onclick="saveExpense()">💾 حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال تفاصيل الطلب / الفاتورة -->
+<div id="invoiceModal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header no-print">
+      <h3>تفاصيل الطلب</h3>
+      <button onclick="closeModal('invoiceModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="invoiceContent" class="invoice-content"></div>
+    <div class="modal-footer no-print">
+      <button class="btn-secondary" onclick="printInvoice()"><i class="fas fa-print"></i> طباعة</button>
+      <button class="btn-secondary" onclick="sendInvoiceWhatsApp()"><i class="fab fa-whatsapp"></i> واتساب</button>
+      <button class="btn-primary" onclick="closeModal('invoiceModal')">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال اختيار العميل -->
+<div id="customerPickerModal" class="modal hidden">
+  <div class="modal-content small">
+    <div class="modal-header">
+      <h3>اختيار عميل</h3>
+      <button onclick="closeModal('customerPickerModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="text" placeholder="ابحث عن عميل..." oninput="searchCustomerPicker(this.value)" class="search-picker">
+      <div id="customerPickerList" class="picker-list"></div>
+      <hr>
+      <button class="btn-secondary w-full" onclick="quickAddCustomer()">
+        <i class="fas fa-user-plus"></i> إضافة عميل جديد
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- إشعارات Toast -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- صوت الطلب -->
+<audio id="orderSound" preload="auto">
+  <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFiYqJiIeHh4iIiYmJiYmJiIeGhYSEhIODg4ODhISFhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaFhISEg4KCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKDhIWGh4iJiouLi4uLioqJiIeHhoWFhISDg4KCgoKCgoKCgoKDg4SEhYaHh4iIiYmJiYmJiYiIh4eGhoWFhISDg4KCgoKCgoKCg4OEhIWGhoeIiIiIiIiIiIiHh4aGhYWEhIODgoKCgoKCgoKCg4OEhIWFhoaGhoaGhoaGhoaGhYWFhISDg4KCgoKCgoKCgoODhISFhYaGhoeHh4eHh4eGhoWFhISDg4KCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCg4SEhYaGh4iIiImJiYmJiYmIiIiHh4aGhYWEhIODgoKCgoKCgoKCg4OEhIWFhoaHh4eHh4eHh4aGhYWEhIODgoKCgoKCgoKCg4OEhIWFhoaGhoaGhoaGhoaGhYWFhISD" type="audio/wav">
+</audio>
+
+<script src="app.js"></script>
+</body>
+</html>
